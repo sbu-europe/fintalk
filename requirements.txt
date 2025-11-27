@@ -1,0 +1,25 @@
+# Django and REST Framework
+Django==5.2.8
+djangorestframework==3.16.1
+django-cors-headers==4.9.0
+
+# Database
+psycopg2-binary==2.9.11
+
+# LlamaIndex and AI
+llama-index==0.14.8
+llama-index-vector-stores-opensearch==0.6.2
+llama-index-llms-bedrock-converse==0.11.1
+llama-index-embeddings-bedrock==0.7.2
+
+# AWS
+boto3==1.40.61
+
+# OpenSearch
+opensearch-py==2.8.0
+
+# ASGI Server
+uvicorn==0.38.0
+
+# Environment variables
+python-dotenv==1.2.1

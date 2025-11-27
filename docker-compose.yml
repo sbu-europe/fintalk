@@ -1,0 +1,77 @@
+
+name: fintalk
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: fintalk-postgres
+    environment:
+      POSTGRES_DB: fintalk
+      POSTGRES_USER: fintalk_user
+      POSTGRES_PASSWORD: fintalk_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - fintalk-network
+
+
+  opensearch:
+    image: opensearchproject/opensearch:3
+    container_name: fintalk-opensearch
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch
+      - discovery.type=single-node        # important for single-node setup
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+    env_file:
+      - .env
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536  # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
+        hard: 65536
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600  # required for Performance Analyzer
+
+    networks:
+      - fintalk-network
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]' 
+    networks:
+      - fintalk-network
+
+  django:
+    build: .
+    container_name: fintalk-django
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - fintalk-network
+    volumes:
+      - .:/app
+
+volumes:
+  postgres_data:
+  opensearch_data:
+
+networks:
+  fintalk-network:
+    driver: bridge

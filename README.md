@@ -5,7 +5,7 @@ A Django REST API implementing a Retrieval-Augmented Generation (RAG) system for
 ## Features
 
 - **Semantic Document Search**: Upload and query financial documents using natural language
-- **Credit Card Management**: Block credit cards via phone number lookup
+- **Credit Card Management**: Block and enable credit cards via phone number lookup
 - **Real-time Streaming**: Get AI responses in real-time via Server-Sent Events (SSE)
 - **Dual Response Modes**: Choose between streaming or complete JSON responses
 - **Containerized Deployment**: Full Docker Compose setup with persistent storage
@@ -13,9 +13,11 @@ A Django REST API implementing a Retrieval-Augmented Generation (RAG) system for
 ## Architecture
 
 ```
+
 Client → Django REST API → LlamaIndex Agent → AWS Bedrock (LLM + Embeddings)
-                    ↓                ↓
-              PostgreSQL      OpenSearch (Vector Store)
+↓                ↓
+PostgreSQL      OpenSearch (Vector Store)
+
 ```
 
 ## Prerequisites
@@ -57,10 +59,11 @@ docker-compose up --build -d
 ```
 
 This will start:
-- Django API (port 8000)
-- PostgreSQL (port 5432)
-- OpenSearch (port 9200)
-- OpenSearch Dashboards (port 5601)
+
+* Django API (port 8000)
+* PostgreSQL (port 5432)
+* OpenSearch (port 9200)
+* OpenSearch Dashboards (port 5601)
 
 ### 4. Run Database Migrations
 
@@ -83,6 +86,7 @@ curl http://localhost:8000/api/health/
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy",
@@ -132,6 +136,7 @@ curl -X POST http://localhost:8000/api/documents/upload/ \
 ```
 
 **Process:**
+
 1. Document is validated and loaded
 2. Content is chunked (512 tokens per chunk, 128 token overlap)
 3. Embeddings are generated via AWS Bedrock
@@ -233,7 +238,35 @@ curl -X POST http://localhost:8000/api/agent/query/ \
 }
 ```
 
-#### 5. Health Check
+#### 5. Credit Card Enabling
+
+Enable a credit card (opposite of blocking) by including the phone number in your query.
+
+**Request:**
+
+```bash
+curl -X POST http://localhost:8000/api/agent/query/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Enable my credit card",
+    "phone_number": "+1234567890",
+    "stream": false
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "response": "Successfully enabled credit card for phone number +1234567890. Card ending in: 1234. Username: john_doe. Enabled at: 2024-11-26T10:35:00Z",
+  "sources": [],
+  "tools_used": ["enable_credit_card"],
+  "timestamp": "2024-11-26T10:35:00Z"
+}
+```
+
+#### 6. Health Check
 
 Check system health and service connectivity.
 
@@ -265,12 +298,14 @@ The LlamaIndex ReActAgent can:
 
 1. **Search Documents**: Semantic search across uploaded documents
 2. **Block Credit Cards**: Deactivate cards by phone number
-3. **Multi-step Reasoning**: Combine multiple tools to answer complex queries
-4. **Conversational Context**: Maintain context across multiple queries
+3. **Enable Credit Cards**: Activate cards by phone number
+4. **Multi-step Reasoning**: Combine multiple tools to answer complex queries
+5. **Conversational Context**: Maintain context across multiple queries
 
 ### Example Queries
 
 **Document Search:**
+
 ```
 "What are the key financial metrics in the Q3 report?"
 "Summarize the risk factors mentioned in the document"
@@ -278,14 +313,19 @@ The LlamaIndex ReActAgent can:
 ```
 
 **Credit Card Management:**
+
 ```
 "Block the credit card for phone number +1234567890"
-"I lost my card, please block it. My number is +1234567891"
+"Enable the credit card for phone number +1234567891"
+"I lost my card, please block it. My number is +1234567890"
+"Please re-enable my card +1234567891"
 ```
 
 **Hybrid Queries:**
+
 ```
 "What does the policy say about lost cards? Also block my card +1234567890"
+"Summarize the report and enable my card +1234567891"
 ```
 
 For detailed prompting guidelines, see [AI_PROMPTING_GUIDELINES.md](AI_PROMPTING_GUIDELINES.md).

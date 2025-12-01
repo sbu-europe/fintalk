@@ -601,6 +601,40 @@ For issues and questions:
 - Project Context: See [project-context.md](project-context.md)
 
 ## Acknowledgments
+### AWS Bedrock Pricing
+
+- **Amazon Nova Lite**: ~$0.00006 per 1K input tokens, ~$0.00024 per 1K output tokens
+- **Amazon Titan Embeddings**: ~$0.0001 per 1K tokens
+
+**Estimated Monthly Costs** (1000 queries/day):
+- LLM: ~$10-20/month
+- Embeddings: ~$5-10/month
+- Total: ~$15-30/month
+
+### Infrastructure Costs
+
+- **Docker Hosting**: Varies by provider (AWS ECS, DigitalOcean, etc.)
+- **Storage**: PostgreSQL + OpenSearch data volumes
+- **Network**: Egress costs for API responses
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `docker-compose exec django python manage.py test`
+5. Submit a pull request
+
+## License
+
+[Your License Here]
+
+## Support
+
+For issues and questions:
+- GitHub Issues: [repository-url]/issues
+- Documentation: See [AI_PROMPTING_GUIDELINES.md](AI_PROMPTING_GUIDELINES.md)
+- Project Context: See [project-context.md](project-context.md)
 
 - Built with [LlamaIndex](https://www.llamaindex.ai/)
 - Powered by [AWS Bedrock](https://aws.amazon.com/bedrock/)

@@ -1,0 +1,175 @@
+{
+  "examples": [
+    {
+      "name": "Basic Query",
+      "description": "Simple user message without system prompt",
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What loan options are available?"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Query with System Prompt",
+      "description": "User message with system instructions",
+      "request": {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a professional banking assistant. Be concise and helpful."
+          },
+          {
+            "role": "user",
+            "content": "What are your interest rates for personal loans?"
+          }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 2048
+      }
+    },
+    {
+      "name": "Credit Card Blocking",
+      "description": "Request to block credit card with phone number",
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "I lost my credit card, please block it immediately [phone: +1234567890]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Multi-turn Conversation",
+      "description": "Conversation with history",
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a helpful banking assistant."
+          },
+          {
+            "role": "user",
+            "content": "What types of loans do you offer?"
+          },
+          {
+            "role": "assistant",
+            "content": "We offer three main types of loans: personal loans, home loans, and auto loans. Each has different terms and interest rates."
+          },
+          {
+            "role": "user",
+            "content": "What are the requirements for a personal loan?"
+          }
+        ],
+        "temperature": 0.5
+      }
+    },
+    {
+      "name": "Document Search Query",
+      "description": "Query that triggers document search",
+      "request": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What are the key financial metrics mentioned in the Q3 report?"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Complex Query with Context",
+      "description": "Query with system prompt, conversation history, and phone number",
+      "request": {
+        "model": "amazon.nova-lite-v1:0",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a professional banking call center agent. Always verify customer identity before sensitive operations."
+          },
+          {
+            "role": "user",
+            "content": "Hi, I need help with my account"
+          },
+          {
+            "role": "assistant",
+            "content": "Hello! I'd be happy to help you with your account. What do you need assistance with today?"
+          },
+          {
+            "role": "user",
+            "content": "I think my card was stolen. Can you block it? My number is [phone: +1234567891]"
+          }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1024
+      }
+    },
+    {
+      "name": "Vapi.ai Style Request",
+      "description": "Typical request from Vapi.ai voice assistant",
+      "request": {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a professional banking call center agent for FinTalk. Speak naturally and conversationally. Always be polite and helpful."
+          },
+          {
+            "role": "user",
+            "content": "Hello, I'm interested in getting a home loan. What do I need to qualify?"
+          }
+        ],
+        "temperature": 0.8,
+        "max_tokens": 2048
+      }
+    }
+  ],
+  "curl_examples": {
+    "basic_streaming": "curl -X POST http://localhost:8000/api/chat/completions/ -H 'Content-Type: application/json' -d '{\"messages\": [{\"role\": \"user\", \"content\": \"What loan options are available?\"}], \"stream\": true}'",
+    "basic_non_streaming": "curl -X POST http://localhost:8000/api/chat/completions/ -H 'Content-Type: application/json' -d '{\"messages\": [{\"role\": \"user\", \"content\": \"What loan options are available?\"}], \"stream\": false}'",
+    "with_system_prompt": "curl -X POST http://localhost:8000/api/chat/completions/ -H 'Content-Type: application/json' -d '{\"messages\": [{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, {\"role\": \"user\", \"content\": \"What are your services?\"}], \"temperature\": 0.7, \"stream\": false}'",
+    "credit_card_block": "curl -X POST http://localhost:8000/api/chat/completions/ -H 'Content-Type: application/json' -d '{\"messages\": [{\"role\": \"user\", \"content\": \"Block my card [phone: +1234567890]\"}], \"stream\": false}'",
+    "production": "curl -X POST https://api.yourdomain.com/api/chat/completions/ -H 'Content-Type: application/json' -H 'Authorization: Bearer YOUR_API_KEY' -d '{\"messages\": [{\"role\": \"user\", \"content\": \"Hello\"}]}'"
+  },
+  "expected_response_structure_non_streaming": {
+    "id": "chatcmpl-abc123def456",
+    "object": "chat.completion",
+    "created": 1677652288,
+    "model": "amazon.nova-lite-v1:0",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "Response text here..."
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 45,
+      "completion_tokens": 120,
+      "total_tokens": 165
+    }
+  },
+  "expected_response_structure_streaming": {
+    "description": "Server-Sent Events (SSE) format",
+    "example": [
+      "data: {\"id\":\"chatcmpl-abc123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"amazon.nova-lite-v1:0\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"We\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-abc123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"amazon.nova-lite-v1:0\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" offer\"},\"finish_reason\":null}]}",
+      "data: {\"id\":\"chatcmpl-abc123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"amazon.nova-lite-v1:0\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+      "data: [DONE]"
+    ]
+  },
+  "error_response_structure": {
+    "error": {
+      "message": "Error message here",
+      "type": "invalid_request_error",
+      "param": "messages",
+      "code": "validation_error"
+    }
+  }
+}

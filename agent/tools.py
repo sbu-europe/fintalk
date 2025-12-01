@@ -114,7 +114,8 @@ def block_credit_card(phone_number: str) -> str:
     """
     try:
         logger.info(f"Attempting to block credit card for phone: {phone_number}")
-        
+        if not phone_number.startswith('+'):
+            phone_number = '+' + phone_number 
         # Find cardholder by phone number
         cardholder = CardHolder.objects.get(phone_number=phone_number)
         
@@ -170,7 +171,8 @@ def enable_credit_card(phone_number: str) -> str:
     """
     try:
         logger.info(f"Attempting to enable credit card for phone: {phone_number}")
-        
+        if not phone_number.startswith('+'):
+            phone_number = '+' + phone_number 
         # Find cardholder by phone number
         cardholder = CardHolder.objects.get(phone_number=phone_number)
         

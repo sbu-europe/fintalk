@@ -233,7 +233,127 @@ curl -X POST http://localhost:8000/api/agent/query/ \
 }
 ```
 
-#### 5. Health Check
+#### 5. OpenAI-Compatible Chat Completions (for Vapi.ai)
+
+Send queries in OpenAI Chat Completions format for integration with Vapi.ai and other OpenAI-compatible tools. Supports both streaming and non-streaming responses.
+
+**Endpoint:** `POST /api/chat/completions/`
+
+**Request (Streaming - Default):**
+
+```bash
+curl -X POST http://localhost:8000/api/chat/completions/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful banking assistant."
+      },
+      {
+        "role": "user",
+        "content": "What loan options are available?"
+      }
+    ],
+    "temperature": 0.7,
+    "stream": true
+  }'
+```
+
+**Response (Streaming):**
+
+```
+Content-Type: text/event-stream
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1677652288,"model":"amazon.nova-lite-v1:0","choices":[{"index":0,"delta":{"content":"We"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1677652288,"model":"amazon.nova-lite-v1:0","choices":[{"index":0,"delta":{"content":" offer"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1677652288,"model":"amazon.nova-lite-v1:0","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+**Request (Non-Streaming):**
+
+```bash
+curl -X POST http://localhost:8000/api/chat/completions/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-3.5-turbo",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What loan options are available?"
+      }
+    ],
+    "stream": false
+  }'
+```
+
+**Response (Non-Streaming):**
+
+```json
+{
+  "id": "chatcmpl-abc123def456",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "amazon.nova-lite-v1:0",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "We offer several loan options including personal loans, home loans, and auto loans. Personal loans can be used for various purposes with flexible repayment terms. Would you like more details about any specific loan type?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 45,
+    "completion_tokens": 52,
+    "total_tokens": 97
+  }
+}
+```
+
+**Features:**
+- Full OpenAI Chat Completions API compatibility
+- Streaming support with Server-Sent Events (SSE)
+- Conversation history via `messages` array
+- Phone number extraction using `[phone: +1234567890]` format
+- Token usage estimation
+- Error responses in OpenAI format
+
+**Vapi.ai Integration:**
+
+To integrate with Vapi.ai:
+
+1. In Vapi.ai dashboard, create a new Custom LLM provider
+2. Set the URL to: `https://your-domain.com/api/chat/completions/`
+3. Add authentication header if needed
+4. Configure voice settings and system prompt
+5. Test the integration
+
+Example Vapi.ai configuration:
+```json
+{
+  "name": "Fintalk Banking Assistant",
+  "model": {
+    "provider": "custom-llm",
+    "url": "https://your-domain.com/api/chat/completions/",
+    "model": "amazon.nova-lite-v1:0"
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "professional-female"
+  },
+  "firstMessage": "Hello! I'm your Fintalk banking assistant. How can I help you today?"
+}
+```
+
+#### 6. Health Check
 
 Check system health and service connectivity.
 

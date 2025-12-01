@@ -646,3 +646,501 @@ def _handle_non_streaming_query(query_text: str, original_message: str):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# ============================================================================
+# OpenAI-Compatible API for Vapi.ai Integration
+# ============================================================================
+
+import re
+import time
+import uuid as uuid_module
+import asyncio
+from .serializers import OpenAIQuerySerializer
+
+
+def _extract_query_and_context(messages: list) -> tuple:
+    """
+    Extract the user query and phone number context from OpenAI messages.
+    
+    Combines system messages, conversation history, and the latest user
+    message into a single query string. Extracts phone number if present.
+    
+    Args:
+        messages: List of OpenAI message objects
+        
+    Returns:
+        Tuple of (query_text, phone_number)
+    """
+    system_messages = []
+    conversation_history = []
+    user_message = ""
+    phone_number = ""
+    
+    for msg in messages:
+        role = msg['role']
+        content = msg['content']
+        
+        if role == 'system':
+            system_messages.append(content)
+        elif role == 'user':
+            user_message = content
+            # Extract phone number if present in format [phone: +1234567890]
+            phone_match = re.search(r'\[phone:\s*([+\d\s-]+)\]', content)
+            if phone_match:
+                phone_number = phone_match.group(1).strip()
+                # Remove phone tag from message
+                user_message = re.sub(r'\[phone:\s*[+\d\s-]+\]', '', content).strip()
+        elif role == 'assistant':
+            conversation_history.append(f"Assistant: {content}")
+    
+    # Build complete query
+    query_parts = []
+    
+    if system_messages:
+        query_parts.append("System Instructions: " + " ".join(system_messages))
+    
+    if conversation_history:
+        query_parts.append("Conversation History:\n" + "\n".join(conversation_history))
+    
+    query_parts.append(f"User: {user_message}")
+    
+    query_text = "\n\n".join(query_parts)
+    
+    return query_text, phone_number
+
+
+def _format_openai_response(content: str, model: str, prompt_text: str) -> dict:
+    """
+    Format agent response as OpenAI Chat Completion.
+    
+    Args:
+        content: The agent's response text
+        model: Model identifier
+        prompt_text: The input prompt (for token estimation)
+        
+    Returns:
+        OpenAI-formatted response dictionary
+    """
+    # Generate unique completion ID
+    completion_id = f"chatcmpl-{uuid_module.uuid4().hex[:24]}"
+    
+    # Estimate token counts (rough approximation: 1 token ≈ 4 characters)
+    prompt_tokens = len(prompt_text) // 4
+    completion_tokens = len(content) // 4
+    total_tokens = prompt_tokens + completion_tokens
+    
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": content
+                },
+                "finish_reason": "stop"
+            }
+        ],
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens
+        }
+    }
+
+
+def _format_openai_error(
+    message: str,
+    error_type: str,
+    status_code: int,
+    param: str = None,
+    code: str = None,
+    details: dict = None
+) -> Response:
+    """
+    Format error response in OpenAI format.
+    
+    Args:
+        message: Error message
+        error_type: Type of error (invalid_request_error, server_error, etc.)
+        status_code: HTTP status code
+        param: Parameter that caused the error (optional)
+        code: Error code (optional)
+        details: Additional error details (optional)
+        
+    Returns:
+        DRF Response with OpenAI-formatted error
+    """
+    error_response = {
+        "error": {
+            "message": message,
+            "type": error_type
+        }
+    }
+    
+    if param:
+        error_response["error"]["param"] = param
+    
+    if code:
+        error_response["error"]["code"] = code
+    
+    if details:
+        error_response["error"]["details"] = details
+    
+    return Response(error_response, status=status_code)
+
+
+def _execute_agent_sync(query_text: str, phone_number: str = None) -> str:
+    """
+    Execute the agent synchronously and return the response text.
+    
+    Reuses the existing async agent execution logic from agent_query view
+    but returns only the response text.
+    
+    Args:
+        query_text: The query to process
+        phone_number: Optional phone number for credit card operations
+        
+    Returns:
+        Agent response as string
+        
+    Raises:
+        Exception: If agent execution fails
+    """
+    if agent is None:
+        raise RuntimeError("Agent is not initialized")
+    
+    # Add phone number context if provided
+    if phone_number:
+        query_text = f"{query_text}\n\n[User phone number: {phone_number}]"
+    
+    # Run agent asynchronously
+    async def run_agent():
+        handler = agent.run(user_msg=query_text)
+        response = await handler
+        return response
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        response = loop.run_until_complete(run_agent())
+        return str(response)
+    finally:
+        loop.close()
+
+
+def _execute_agent_stream(query_text: str, phone_number: str = None):
+    """
+    Execute the agent and yield streaming tokens.
+    
+    Args:
+        query_text: The query to process
+        phone_number: Optional phone number for credit card operations
+        
+    Yields:
+        Token strings as they are generated
+        
+    Raises:
+        Exception: If agent execution fails
+    """
+    if agent is None:
+        raise RuntimeError("Agent is not initialized")
+    
+    # Add phone number context if provided
+    if phone_number:
+        query_text = f"{query_text}\n\n[User phone number: {phone_number}]"
+    
+    # Run agent asynchronously with streaming
+    async def stream_agent():
+        from llama_index.core.agent.workflow import AgentStream
+        
+        handler = agent.run(user_msg=query_text)
+        response = await handler
+        yield str(response)
+        # Stream events as they arrive
+        # async for event in handler.stream_events():
+        #     # Check if this is an AgentStream event (contains response text)
+        #     if isinstance(event, AgentStream):
+        #         yield event.delta
+    
+    # Create event loop and stream tokens
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        async_gen = stream_agent()
+        while True:
+            try:
+                token = loop.run_until_complete(async_gen.__anext__())
+                yield token
+            except StopAsyncIteration:
+                break
+    finally:
+        loop.close()
+
+
+@api_view(['POST'])
+def openai_chat_completions(request):
+    """
+    OpenAI-compatible Chat Completions endpoint for Vapi.ai integration.
+    
+    Supports both streaming and non-streaming responses in OpenAI format.
+    
+    Request:
+        POST /api/chat/completions/
+        Content-Type: application/json
+        Body: {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What loan options are available?"}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "stream": true
+        }
+    
+    Response (Non-streaming):
+        200 OK:
+        {
+            "id": "chatcmpl-abc123",
+            "object": "chat.completion",
+            "created": 1677652288,
+            "model": "amazon.nova-lite-v1:0",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "We offer personal loans, home loans..."
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 45,
+                "completion_tokens": 120,
+                "total_tokens": 165
+            }
+        }
+    
+    Response (Streaming):
+        Content-Type: text/event-stream
+        
+        data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1677652288,"model":"amazon.nova-lite-v1:0","choices":[{"index":0,"delta":{"content":"We"},"finish_reason":null}]}
+        
+        data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1677652288,"model":"amazon.nova-lite-v1:0","choices":[{"index":0,"delta":{"content":" offer"},"finish_reason":null}]}
+        
+        data: [DONE]
+    """
+    logger.info("OpenAI Chat Completions endpoint request received")
+    
+    # 1. Validate request
+    serializer = OpenAIQuerySerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        logger.warning(f"OpenAI endpoint validation failed: {serializer.errors}")
+        return _format_openai_error(
+            message="Invalid request data",
+            error_type="invalid_request_error",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="validation_error",
+            details=serializer.errors
+        )
+    
+    # 2. Extract and process messages
+    messages = serializer.validated_data['messages']
+    model = serializer.validated_data.get('model', 'amazon.nova-lite-v1:0')
+    temperature = serializer.validated_data.get('temperature', 0.7)
+    max_tokens = serializer.validated_data.get('max_tokens', 2048)
+    stream = serializer.validated_data.get('stream', False)
+    
+    logger.info(
+        f"OpenAI endpoint processing: model={model}, "
+        f"messages_count={len(messages)}, temperature={temperature}, "
+        f"max_tokens={max_tokens}, stream={stream}"
+    )
+    
+    # 3. Convert to internal format
+    try:
+        query_text, phone_number = _extract_query_and_context(messages)
+        logger.info(
+            f"Extracted query (length={len(query_text)}), "
+            f"phone_number={'present' if phone_number else 'absent'}"
+        )
+    except Exception as e:
+        logger.error(f"Error extracting query and context: {e}")
+        return _format_openai_error(
+            message=f"Failed to process messages: {str(e)}",
+            error_type="invalid_request_error",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="message_processing_error"
+        )
+    
+    # 4. Handle streaming vs non-streaming
+    if stream:
+        return _handle_streaming_chat_completion(query_text, phone_number, model)
+    else:
+        return _handle_non_streaming_chat_completion(query_text, phone_number, model)
+    
+
+def _handle_streaming_chat_completion(query_text: str, phone_number: str, model: str):
+    """
+    Handle streaming chat completion request.
+    
+    Args:
+        query_text: The query to process
+        phone_number: Optional phone number for credit card operations
+        model: Model identifier
+        
+    Returns:
+        StreamingHttpResponse with SSE events
+    """
+    def stream_events():
+        stream_id = f"chatcmpl-{uuid_module.uuid4().hex[:24]}"
+        created_time = int(time.time())
+        
+        try:
+            logger.info("Starting streaming chat completion")
+            
+            # Stream tokens from agent
+            for token in _execute_agent_stream(query_text, phone_number):
+                chunk_data = {
+                    "id": stream_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_time,
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"content": token},
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(chunk_data)}\n\n"
+                time.sleep(0.01)  # Small delay for natural streaming
+            
+            # Send final chunk with finish_reason
+            final_chunk = {
+                "id": stream_id,
+                "object": "chat.completion.chunk",
+                "created": created_time,
+                "model": model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(final_chunk)}\n\n"
+            yield "data: [DONE]\n\n"
+            
+            logger.info("Streaming chat completion completed successfully")
+            
+        except RuntimeError as e:
+            logger.error(f"Agent not initialized: {e}")
+            error_response = {
+                "error": {
+                    "message": "Agent service is not available",
+                    "type": "service_unavailable_error",
+                    "code": "agent_unavailable"
+                }
+            }
+            yield f"data: {json.dumps(error_response)}\n\n"
+            yield "data: [DONE]\n\n"
+            
+        except Exception as e:
+            logger.error(f"Error during streaming: {e}", exc_info=True)
+            error_response = {
+                "error": {
+                    "message": str(e),
+                    "type": "internal_error",
+                }
+            }
+            yield f"data: {json.dumps(error_response)}\n\n"
+            yield "data: [DONE]\n\n"
+    
+    response = StreamingHttpResponse(
+        stream_events(),
+        content_type="text/event-stream"
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    
+    return response
+
+
+def _handle_non_streaming_chat_completion(query_text: str, phone_number: str, model: str):
+    """
+    Handle non-streaming chat completion request.
+    
+    Args:
+        query_text: The query to process
+        phone_number: Optional phone number for credit card operations
+        model: Model identifier
+        
+    Returns:
+        Response with complete chat completion
+    """
+    try:
+        logger.info("Executing agent for non-streaming chat completion")
+        agent_response = _execute_agent_sync(query_text, phone_number)
+        logger.info(f"Agent execution successful (response length={len(agent_response)})")
+        
+    except RuntimeError as e:
+        logger.error(f"Agent not initialized: {e}")
+        return _format_openai_error(
+            message="Agent service is not available",
+            error_type="service_unavailable_error",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="agent_unavailable",
+            details=str(e)
+        )
+        
+    except ConnectionError as e:
+        logger.error(f"Service connection error: {e}")
+        return _format_openai_error(
+            message="Unable to connect to required services",
+            error_type="service_unavailable_error",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            code="service_connection_error",
+            details=str(e)
+        )
+        
+    except Exception as e:
+        logger.error(f"Agent execution failed: {e}", exc_info=True)
+        return _format_openai_error(
+            message=f"Agent execution failed: {str(e)}",
+            error_type="server_error",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            code="agent_execution_error"
+        )
+    
+    # Format as OpenAI response
+    try:
+        openai_response = _format_openai_response(
+            content=agent_response,
+            model=model,
+            prompt_text=query_text
+        )
+        
+        logger.info(
+            f"Chat completion request completed successfully: "
+            f"completion_id={openai_response['id']}, "
+            f"tokens={openai_response['usage']['total_tokens']}"
+        )
+        
+        return Response(openai_response, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error formatting OpenAI response: {e}", exc_info=True)
+        return _format_openai_error(
+            message=f"Failed to format response: {str(e)}",
+            error_type="server_error",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            code="response_formatting_error"
+        )

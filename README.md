@@ -94,6 +94,57 @@ Expected response:
 }
 ```
 
+## How to Use
+
+### Option 1: Direct API Integration
+
+Use the API endpoints directly via HTTP requests (see API Documentation below).
+
+### Option 2: VAPI Phone Integration
+
+Turn your Fintalk agent into a voice-enabled call center assistant using VAPI:
+
+#### Step 1: Create a VAPI Account
+
+1. Go to [vapi.ai](https://vapi.ai) and sign up for an account
+2. You can start with a free account to test the integration
+
+#### Step 2: Get a VAPI Phone Number
+
+1. In your VAPI dashboard, navigate to **Phone Numbers**
+2. Click **Buy Phone Number**
+3. Select a phone number (free options available for testing)
+4. Complete the purchase/registration
+
+#### Step 3: Create a Custom LLM Assistant
+
+1. In your VAPI dashboard, go to **Assistants**
+2. Click **Create Assistant**
+3. Select **Custom LLM** as the provider
+4. Configure the assistant:
+   - **Name**: Fintalk Call Center Agent
+   - **Model URL**: `https://munawar.cloud/api/agent/query/`
+5. Save the assistant
+
+#### Step 4: Configure Phone Number
+
+1. Go back to **Phone Numbers** in your VAPI dashboard
+2. Click on the phone number you purchased
+3. Under **Inbound Settings**, set:
+   - **Assistant**: Select the Custom LLM assistant you just created (Fintalk Call Center Agent)
+4. Save the configuration
+
+#### Step 5: Test Your Voice Agent
+
+1. Call the VAPI phone number from any US phone number
+2. Bingo! Your Fintalk call center agent is ready!
+3. Try asking questions like:
+   - "What are the key points in the financial report?"
+   - "I lost my credit card, can you block it? My number is +1234567890"
+   - "What loan options are available?"
+
+**Note**: Make sure your deployment URL (`https://munawar.cloud/api/agent/query/`) is accessible from the internet and has proper SSL/TLS certificates configured for production use.
+
 ## API Documentation
 
 ### Base URL
